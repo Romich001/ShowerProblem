@@ -6,34 +6,31 @@ import java.util.concurrent.locks.ReentrantLock;
 
 
 //состояния душа
-enum SHOWER_STATE {
-    MEN,
-    WOMEN,
-    FREE
+enum SEX {
+    MEN, WOMEN,
+
 }
 
 public class ShowerProblem {
 
     public static void main(String[] args) {
-        Shower shower = new Shower();
+        var shower = new Shower();
         var random = new Random();
 
         for (int i = 0; i < 10; i++) {
             new Thread(
                     //случайный пол у Person
-                    new Person(shower,
-                            random.nextInt(0, 2) == 0 ? SHOWER_STATE.MEN : SHOWER_STATE.WOMEN),
-                    String.valueOf(i)
-            ).start();
+                    new Person(shower, random.nextInt(0, 2) == 0 ? SEX.MEN : SEX.WOMEN), String.valueOf(i)).start();
         }
     }
 }
 
 class Person implements Runnable {
+    private final Random random = new Random();
     Shower shower;
-    SHOWER_STATE sex;
+    SEX sex;
 
-    public Person(Shower shower, SHOWER_STATE state) {
+    public Person(Shower shower, SEX state) {
         this.shower = shower;
         this.sex = state;
     }
@@ -41,23 +38,13 @@ class Person implements Runnable {
     @Override
     public void run() {
 
-        shower.takeShower(sex);
+        shower.enterToShower(sex);
+        takeShower();
+        shower.exitShower();
     }
-}
 
-class Shower {
+    private void takeShower() {
 
-    //считаем находящихся в душе
-    private final AtomicInteger inShower = new AtomicInteger(0);
-    private final ReentrantLock lock = new ReentrantLock();
-    private final Random random = new Random();
-    private final Condition condition = lock.newCondition();
-    private SHOWER_STATE showerState = SHOWER_STATE.FREE;
-
-    public void takeShower(SHOWER_STATE sex) {
-//      вход в душ по одному
-        enterToShower(sex);
-        inShower.incrementAndGet();
 
 //        душ
         System.out.println(sex.name() + " start taking a shower! in thread " + Thread.currentThread().getName());
@@ -70,18 +57,28 @@ class Shower {
         }
         System.out.println(sex.name() + " finish taking a shower! in thread " + Thread.currentThread().getName());
 
-//        выход из душа
-        exitShower();
-
 
     }
+}
 
-    private void exitShower() {
+class Shower {
+
+    //считаем находящихся в душе
+    private final AtomicInteger inShower = new AtomicInteger(0);
+    private final ReentrantLock lock = new ReentrantLock();
+    private final Condition condition = lock.newCondition();
+    private boolean isFree = true;
+    private SEX showerState;
+
+
+    public void exitShower() {
+
+
         //    последний сообщает что в душе пусто
         if (inShower.decrementAndGet() == 0) {
             lock.lock();
             try {
-                showerState = SHOWER_STATE.FREE;
+                isFree = true;
                 condition.signalAll();
             } finally {
                 lock.unlock();
@@ -90,19 +87,20 @@ class Shower {
         }
     }
 
-    private void enterToShower(SHOWER_STATE sex) {
+    public void enterToShower(SEX sex) {
+
         lock.lock();
         try {
             //если душ свободен то изменинить стутус душа на пол указанный в первом зашедшем в метод треде
-            if (showerState == SHOWER_STATE.FREE) {
+            if (isFree) {
                 showerState = sex;
+                isFree = false;
             } else {
                 // если душ не свободен то проверить соответсвует ли пол входящего тому кто внутри
                 if (showerState != sex) {
                     //если не соответвует то отправить тред ждать пока не измениться сотстояние душа на FREE
-                    while (showerState != SHOWER_STATE.FREE) {
+                    while (!isFree) {
                         condition.await();
-
                     }
                 }
 
@@ -112,5 +110,6 @@ class Shower {
         } finally {
             lock.unlock();
         }
+        inShower.incrementAndGet();
     }
 }
