@@ -1,4 +1,5 @@
 import java.util.Random;
+import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.Condition;
@@ -16,12 +17,12 @@ public class ShowerProblem {
     public static void main(String[] args) {
         var shower = new Shower();
         var random = new Random();
-
+        var executor = Executors.newCachedThreadPool();
         for (int i = 0; i < 10; i++) {
-            new Thread(
-                    //случайный пол у Person
-                    new Person(shower, random.nextInt(0, 2) == 0 ? SEX.MEN : SEX.WOMEN), String.valueOf(i)).start();
+            executor.submit(new Person(shower, random.nextInt(0, 2) == 0 ? SEX.MEN : SEX.WOMEN));
+
         }
+        executor.shutdown();
     }
 }
 
